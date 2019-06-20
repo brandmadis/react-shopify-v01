@@ -2,18 +2,21 @@ import React, { Component } from 'react';
 // import logo from './logo.svg';
 import './App.css';
 import { connect } from 'react-redux';
-import Cart from './components/shopify/Cart';
+// import Cart from './components/shopify/Cart';
 import store from './store';
 import axios from 'axios';
+import { isImmutable } from '@babel/types';
 
 // custom components
-import Nav from './components/Nav';
-import GenericProductsPage from './components/GenericProductsPage';
+// import Nav from './components/Nav';
+// import GenericProductsPage from './components/GenericProductsPage';
 
 class App extends Component {
   state = {
     persons: [],
-    collection: []
+    collection: [],
+    filtered: [],
+    tags: [],
   }
   constructor() {
     super();
@@ -23,16 +26,16 @@ class App extends Component {
     this.handleCartOpen = this.handleCartOpen.bind(this);
   }
   componentDidMount(){
-    console.log("component did mount")
     let body = `{
       collectionByHandle(handle: "new-stuff") {
         title
         handle
-        products(first: 5) {
+        products(first: 50) {
           edges {
             node {
               title
-              images(first: 5) {
+              tags
+              images(first: 50) {
                 edges {
                   node {
                     id
@@ -63,9 +66,35 @@ class App extends Component {
     })
     .then(res => {
       
-      this.setState({collection: res.data.data.collectionByHandle.products.edges})
-      console.log("res: ", this.state.collection)
+      this.setState({
+        collection: res.data.data.collectionByHandle.products.edges,
+        filtered: res.data.data.collectionByHandle.products.edges,
+      })
     })
+    .then(() => {
+      let tags = []
+      this.state.collection.forEach((item) => {
+        // if one tag
+        if(item.node.tags.length == 1){
+
+          
+          if(tags.indexOf(item.node.tags[0]) == -1){
+            tags.push(item.node.tags[0])
+          }
+        } 
+        // if multiple tags
+        else if(item.node.tags.length > 1){
+          item.node.tags.forEach((tag) => {
+            if(tags.indexOf(tag == -1)){
+              tags.push(tag)
+            }
+          })
+        }
+        
+      })
+      this.setState({tags})
+    }
+    )
 
   }
   updateQuantityInCart(lineItemId, quantity) {
@@ -89,18 +118,50 @@ class App extends Component {
   handleCartOpen() {
     store.dispatch({type: 'OPEN_CART'});
   }
+  filterMens(){
+    this.setState({ filtered: this.state.collection.filter(item => item.node.tags == "men")})
+    // this.state.filtered.filter(item => {    //   return item.node.tags[0] == "men"
+      // item.node.tags.includes("men") == true
+    // })
+
+    // const result = words.filter(word => word.length > 6);
+
+  }
+  filterWomens(){
+    this.setState({ filtered: this.state.collection.filter(item => item.node.tags == "women")})
+  }
+  filter(filter){
+    this.setState({ filtered: this.state.collection.filter(item => item.node.tags.indexOf(filter) != -1)})
+  }
+  resetFilter(){
+    this.setState({ filtered: this.state.collection })
+  }
+  formatTag(item){
+    return item.charAt(0).toUpperCase() + item.slice(1)
+    // return string.charAt(0).toUpperCase() + string.slice(1);
+  }
   render() {
     const state = store.getState(); // state from redux store
     // const collection = this.state.collection.map((item) => 
     //   <li>test</li>
     // )
+
+    const filterButtons = this.state.tags.map((item, i) =>{
+      return <button key={i} onClick={() => this.filter(item)}>
+      { this.formatTag(item) }
+      {/* { item } */}
+      </button>
+    })
     return (
       <div className="App">
         {/* <Nav handleCartOpen={this.handleCartOpen}/> */}
+        <button onClick={()=>this.resetFilter()}>Clear Filters</button>
+        { filterButtons }
+        {/* <button onClick={() => this.filterMens()}>Mens</button>
+        <button onClick={() => this.filterWomens()}>Womens</button> */}
         <ul style={{listStyle: 'none'}}>
         {
-          this.state.collection.map((item, i) => {
-            console.log(item.node.title)
+          this.state.filtered.map((item, i) => {
             return <li key={i}>
               <img src={item.node.images.edges[0].node.originalSrc} width="75px"/>
             {item.node.title}
